@@ -11,6 +11,10 @@
 // ── Framebuffer ───────────────────────────────────────────────────────────────
 uint8_t *framebuffer = NULL;
 
+// ── Partial-refresh state ─────────────────────────────────────────────────────
+static char prevTimeStr[32] = "";
+static char prevDateStr[32] = "";
+
 void display_init() {
     framebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
     if (!framebuffer) {
@@ -125,31 +129,118 @@ void renderMain(const DateInfo *di, const MoonInfo *mi) {
     epd_draw_grayscale_image(epd_full_screen(), framebuffer);
     epd_poweroff();
 
+    strcpy(prevTimeStr, di->timeStr);
+    strcpy(prevDateStr, di->dateStr);
+
     Serial.printf("Main: %s | %s | Moon %.1fd %d%% %s | %s %s\n",
                   di->dayName, di->dateStr,
                   mi->age, mi->illum, mi->phase,
                   mi->paksha, mi->tithi);
 }
 
-void renderTimeRegion(const DateInfo *di) {
-    Rect_t rgn = {.x = 0, .y = TIME_REGION_Y,
-                  .width = EPD_WIDTH, .height = TIME_REGION_H};
+// Find first/last indices where strings a and b differ.
+// Returns false if they are equal.
+static bool diffRange(const char *a, const char *b, int *first, int *last) {
+    int la = strlen(a), lb = strlen(b), l = la > lb ? la : lb;
+    *first = -1; *last = -1;
+    for (int i = 0; i < l; i++) {
+        char ca = i < la ? a[i] : '\0';
+        char cb = i < lb ? b[i] : '\0';
+        if (ca != cb) { if (*first < 0) *first = i; *last = i; }
+    }
+    return *first >= 0;
+}
 
-    // Clear those rows in the framebuffer to white
-    memset(framebuffer + TIME_REGION_Y * EPD_WIDTH / 2,
-           0xFF, TIME_REGION_H * EPD_WIDTH / 2);
+// Pixel x-range (lo..hi, even-aligned) for chars [i_first..i_last] in a
+// centered FiraSans string at baseline y.  Returns false if degenerate.
+static bool firaXRange(const char *s, int i_first, int i_last,
+                        int32_t y, int32_t *lo, int32_t *hi) {
+    int32_t x, yt, x1, y1, w, h;
+    x = 0; yt = y;
+    get_text_bounds((GFXfont*)&FiraSans, s, &x, &yt, &x1, &y1, &w, &h, NULL);
+    int32_t base = (EPD_WIDTH - w) / 2;
 
-    // Redraw time and date at their absolute Y coords into the global framebuffer
-    drawFira(di->timeStr, Y_TIME);
-    drawFira(di->dateStr, Y_DATE);
+    int32_t w_pre = 0;
+    if (i_first > 0) {
+        char buf[64]; strncpy(buf, s, i_first); buf[i_first] = '\0';
+        x = 0; yt = y;
+        get_text_bounds((GFXfont*)&FiraSans, buf, &x, &yt, &x1, &y1, &w_pre, &h, NULL);
+    }
 
-    // Push only that strip to the display
-    epd_poweron();
+    int32_t w_end = w;
+    int end = i_last + 1;
+    if (end < (int)strlen(s)) {
+        char buf[64]; strncpy(buf, s, end); buf[end] = '\0';
+        x = 0; yt = y;
+        get_text_bounds((GFXfont*)&FiraSans, buf, &x, &yt, &x1, &y1, &w_end, &h, NULL);
+    }
+
+    // 4px padding each side; +1 for faux-bold; align to even byte boundary
+    *lo = (base + w_pre - 4) & ~1;
+    *hi = ((base + w_end + 5) + 1) & ~1;
+    if (*lo < 0) *lo = 0;
+    if (*hi > EPD_WIDTH) *hi = EPD_WIDTH;
+    return *hi > *lo;
+}
+
+// Extract rect (rx,ry,rw,rh) from the global framebuffer into a packed temp
+// buffer and push it to the EPD.  epd_poweron() must already be active.
+static void pushSubRect(int32_t rx, int32_t ry, int32_t rw, int32_t rh) {
+    uint8_t *tmp = (uint8_t*)malloc(rw * rh / 2);
+    if (!tmp) return;
+    for (int r = 0; r < rh; r++)
+        memcpy(tmp + r * rw / 2,
+               framebuffer + (ry + r) * EPD_WIDTH / 2 + rx / 2,
+               rw / 2);
+    Rect_t rgn = {.x = rx, .y = ry, .width = rw, .height = rh};
     epd_clear_area(rgn);
-    epd_draw_grayscale_image(rgn, framebuffer + TIME_REGION_Y * EPD_WIDTH / 2);
+    epd_draw_grayscale_image(rgn, tmp);
+    free(tmp);
+}
+
+void renderTimeRegion(const DateInfo *di) {
+    // FiraSans metrics: ascender≈39, descender≈-11 → pad to [y-42, y+13]
+    const int32_t ASCEND = 42, DESCEND = 13;
+
+    int tf, tl, df, dl;
+    bool t_diff = diffRange(prevTimeStr, di->timeStr, &tf, &tl);
+    bool d_diff = diffRange(prevDateStr, di->dateStr, &df, &dl);
+    if (!t_diff && !d_diff) return;
+
+    int32_t t_lo = 0, t_hi = 0, d_lo = 0, d_hi = 0;
+    bool t_valid = t_diff && firaXRange(di->timeStr, tf, tl, Y_TIME, &t_lo, &t_hi);
+    bool d_valid = d_diff && firaXRange(di->dateStr, df, dl, Y_DATE, &d_lo, &d_hi);
+
+    // Clear only the changed x-band in the framebuffer, then redraw the line
+    if (t_valid) {
+        int32_t ry = Y_TIME - ASCEND, rh = ASCEND + DESCEND;
+        for (int r = ry; r < ry + rh; r++)
+            memset(framebuffer + r * EPD_WIDTH / 2 + t_lo / 2, 0xFF, (t_hi - t_lo) / 2);
+        drawFira(di->timeStr, Y_TIME);
+    }
+    if (d_valid) {
+        int32_t ry = Y_DATE - ASCEND, rh = ASCEND + DESCEND;
+        for (int r = ry; r < ry + rh; r++)
+            memset(framebuffer + r * EPD_WIDTH / 2 + d_lo / 2, 0xFF, (d_hi - d_lo) / 2);
+        drawFira(di->dateStr, Y_DATE);
+    }
+
+    // Push changed rects in one power session
+    epd_poweron();
+    if (t_valid) {
+        int32_t ry = Y_TIME - ASCEND, rh = ASCEND + DESCEND;
+        pushSubRect(t_lo, ry, t_hi - t_lo, rh);
+        Serial.printf("Partial time x[%d..%d]: %s\n", t_lo, t_hi, di->timeStr);
+    }
+    if (d_valid) {
+        int32_t ry = Y_DATE - ASCEND, rh = ASCEND + DESCEND;
+        pushSubRect(d_lo, ry, d_hi - d_lo, rh);
+        Serial.printf("Partial date x[%d..%d]: %s\n", d_lo, d_hi, di->dateStr);
+    }
     epd_poweroff();
 
-    Serial.printf("Partial: %s | %s\n", di->timeStr, di->dateStr);
+    strcpy(prevTimeStr, di->timeStr);
+    strcpy(prevDateStr, di->dateStr);
 }
 
 void renderTouched() {
