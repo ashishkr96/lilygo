@@ -16,17 +16,17 @@
 #define REDRAW_INTERVAL_MS  60000UL          // poll interval; re-render only on day change
 
 // ── Layout: Y-baselines (FiraSans ascender=39, advance_y=50) ─────────────────
+// NotoDevanagari 24pt: ascender=45, descender=21, advance_y=65
 #define Y_OWNER      65
 #define Y_NOTTOUCH  115
 #define Y_DIV1      140
-#define Y_DAY_EN    190   // English day; top≈151, bottom≈201
-#define Y_DAY_HI    272   // NotoDevanagari ascender=56; top≈216, bottom≈298
-// 7-seg block occupies rows SEG_TOP_Y … SEG_TOP_Y+SEG_DH  (300–370)
+#define Y_DAY_EN    190   // English day; top≈151, bottom≈202
+#define Y_DAY_HI    263   // Hindi day; top≈218 (16px gap), bottom≈284
+// 7-seg block: 300–370 (16px gap after Hindi)
 #define Y_DATE      420   // date baseline; top≈381
 #define Y_DIV2      440
-// Bottom section (y=440–540, 100px) — icons left/right, two text rows centred
-#define Y_PHASE      478   // row 1: moon phase name / weather temp
-#define Y_TITHI      526   // row 2: paksha+tithi / weather condition
+// Bottom section (y=440–540, 100px) — icons + ONE inline row each side
+#define Y_BOTTOM_TEXT  506   // single inline row, vertically centred
 
 // ── 7-Segment time display ────────────────────────────────────────────────────
 #define SEG_TOP_Y    300   // top of digit block
