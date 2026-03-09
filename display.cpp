@@ -203,6 +203,8 @@ struct SegLayout {
     int32_t x_ampm;     // AM/PM text x
     int32_t y_ampm;     // AM/PM text baseline
     int     n_h;        // 1 or 2 hour digits
+    int32_t x_left;     // left edge of first digit (start of time block)
+    int32_t x_right;    // right edge of AM/PM text (end of time block)
 };
 
 static SegLayout computeSegLayout(int h, const char *ampm) {
@@ -219,6 +221,7 @@ static SegLayout computeSegLayout(int h, const char *ampm) {
                     + ampm_w;
     int32_t xp = ((EPD_WIDTH - total_w) / 2) & ~1;  // even-align
 
+    L.x_left = xp;
     for (int i = 0; i < L.n_h; i++) {
         L.xd[i] = xp; xp += SEG_DW;
         if (i < L.n_h - 1) xp += SEG_GAP;
@@ -228,8 +231,48 @@ static SegLayout computeSegLayout(int h, const char *ampm) {
     L.xd[L.n_h]   = xp; xp += SEG_DW + SEG_GAP;
     L.xd[L.n_h+1] = xp; xp += SEG_DW + SEG_GAP;
     L.x_ampm  = xp;
+    L.x_right = xp + ampm_w;
     L.y_ampm  = SEG_TOP_Y + SEG_DH / 2 + 20;   // vertically centred in digit block
     return L;
+}
+
+// ── Partial-refresh utility ────────────────────────────────────────────────────
+// Push a rectangle of the framebuffer to the EPD with 'pad' px of padding on
+// every side. Padding is clamped at screen edges (never wraps or clips content).
+// Caller must have called epd_poweron() before and epd_poweroff() after.
+static void epd_push_partial(int32_t rx, int32_t ry, int32_t rw, int32_t rh, int32_t pad) {
+    // Expand by padding
+    rx -= pad;  ry -= pad;  rw += 2 * pad;  rh += 2 * pad;
+    // Clip to screen bounds
+    if (rx < 0)                    { rw += rx; rx = 0; }
+    if (ry < 0)                    { rh += ry; ry = 0; }
+    if (rx + rw > EPD_WIDTH)         rw = EPD_WIDTH  - rx;
+    if (ry + rh > EPD_HEIGHT)        rh = EPD_HEIGHT - ry;
+    if (rw <= 0 || rh <= 0) return;
+    // Align x to even pixel boundary (4 bpp: 1 byte = 2 pixels)
+    int32_t rx2 = rx & ~1;
+    rw += (rx - rx2);
+    rx = rx2;
+    rw = (rw + 1) & ~1;
+    if (rx + rw > EPD_WIDTH) rw = EPD_WIDTH - rx;
+
+    Rect_t rgn = {.x = rx, .y = ry, .width = rw, .height = rh};
+    epd_clear_area(rgn);
+
+    if (rx == 0 && rw == EPD_WIDTH) {
+        // Full-width row: pass framebuffer slice directly (no copy needed)
+        epd_draw_grayscale_image(rgn, framebuffer + ry * EPD_WIDTH / 2);
+    } else {
+        // Sub-width row: pack into a contiguous temp buffer
+        uint8_t *tmp = (uint8_t *)malloc(rw * rh / 2);
+        if (!tmp) return;
+        for (int r = 0; r < rh; r++)
+            memcpy(tmp + r * rw / 2,
+                   framebuffer + (ry + r) * EPD_WIDTH / 2 + rx / 2,
+                   rw / 2);
+        epd_draw_grayscale_image(rgn, tmp);
+        free(tmp);
+    }
 }
 
 static void drawTimeSevenSeg(const char *timeStr) {
@@ -304,22 +347,22 @@ void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
 }
 
 void renderTimeRegion(const DateInfo *di) {
-    // Full-width strip covering the 7-seg block — avoids per-digit boundary artifacts.
-    int32_t ry = SEG_TOP_Y - 2, rh = SEG_DH + 4;
+    int h, m; char ampm[4] = "";
+    sscanf(di->timeStr, "%d : %d %3s", &h, &m, ampm);
+    SegLayout L = computeSegLayout(h, ampm);
 
-    // Clear the strip in framebuffer then redraw digits
-    for (int r = ry; r < ry + rh; r++)
+    // Clear the full-width SEG strip in the framebuffer (keeps surrounding pixels intact)
+    for (int r = SEG_TOP_Y; r < SEG_TOP_Y + SEG_DH; r++)
         memset(framebuffer + r * EPD_WIDTH / 2, 0xFF, EPD_WIDTH / 2);
     drawTimeSevenSeg(di->timeStr);
 
+    // Push only the actual time block (first digit → end of AM/PM) plus padding
     epd_poweron();
-    Rect_t rgn = {.x = 0, .y = ry, .width = EPD_WIDTH, .height = rh};
-    epd_clear_area(rgn);
-    epd_draw_grayscale_image(rgn, framebuffer + ry * EPD_WIDTH / 2);
+    epd_push_partial(L.x_left, SEG_TOP_Y, L.x_right - L.x_left, SEG_DH, 8);
     epd_poweroff();
 
     strcpy(prevTimeStr, di->timeStr);
-    Serial.printf("Partial: %s\n", di->timeStr);
+    Serial.printf("Partial [x%d..%d]: %s\n", L.x_left, L.x_right, di->timeStr);
 }
 
 void renderTouched() {
