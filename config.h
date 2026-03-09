@@ -31,3 +31,7 @@
 #define Y_DIV2      440
 #define Y_PHASE     490
 #define Y_TITHI     534
+
+// ── Partial-refresh region: time + date lines only ───────────────────────────
+#define TIME_REGION_Y   (Y_TIME - 45)                    // = 319
+#define TIME_REGION_H   (Y_DATE + 15 - TIME_REGION_Y)   // = 108

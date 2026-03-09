@@ -131,6 +131,27 @@ void renderMain(const DateInfo *di, const MoonInfo *mi) {
                   mi->paksha, mi->tithi);
 }
 
+void renderTimeRegion(const DateInfo *di) {
+    Rect_t rgn = {.x = 0, .y = TIME_REGION_Y,
+                  .width = EPD_WIDTH, .height = TIME_REGION_H};
+
+    // Clear those rows in the framebuffer to white
+    memset(framebuffer + TIME_REGION_Y * EPD_WIDTH / 2,
+           0xFF, TIME_REGION_H * EPD_WIDTH / 2);
+
+    // Redraw time and date at their absolute Y coords into the global framebuffer
+    drawFira(di->timeStr, Y_TIME);
+    drawFira(di->dateStr, Y_DATE);
+
+    // Push only that strip to the display
+    epd_poweron();
+    epd_clear_area(rgn);
+    epd_draw_grayscale_image(rgn, framebuffer + TIME_REGION_Y * EPD_WIDTH / 2);
+    epd_poweroff();
+
+    Serial.printf("Partial: %s | %s\n", di->timeStr, di->dateStr);
+}
+
 void renderTouched() {
     int idx = random(NUM_JOKES);
     const char **j = JOKES[idx];

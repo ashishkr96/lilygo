@@ -75,8 +75,12 @@ void loop() {
     if (now - lastCheckMs >= REDRAW_INTERVAL_MS) {
         lastCheckMs = now;
         if (refreshData()) {
-            lastRenderedDay = currentDi.day;
-            renderMain(&currentDi, &currentMi);
+            if (currentDi.day != lastRenderedDay) {
+                lastRenderedDay = currentDi.day;
+                renderMain(&currentDi, &currentMi);   // full render on day change
+            } else {
+                renderTimeRegion(&currentDi);           // partial update for time only
+            }
         }
     }
 

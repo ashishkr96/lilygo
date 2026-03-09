@@ -19,4 +19,5 @@ void drawMoonIcon(int32_t cx, int32_t cy, int32_t r, float age);
 
 // Full-screen render passes
 void renderMain(const DateInfo *di, const MoonInfo *mi);  // property header + date + moon section
+void renderTimeRegion(const DateInfo *di);                 // partial refresh: time + date strip only
 void renderTouched();                                      // random joke screen
