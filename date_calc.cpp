@@ -44,7 +44,7 @@ void buildDateInfo(DateInfo *di) {
     di->hindiDay = DOW_HI[h];
     snprintf(di->dateStr, sizeof(di->dateStr), "%s %d, %d",
              MONTH_NAMES[di->month], di->day, di->year);
-    snprintf(di->timeStr, sizeof(di->timeStr), "--:-- --");  // no RTC at compile time
+    snprintf(di->timeStr, sizeof(di->timeStr), "-- : -- --");  // no RTC at compile time
 }
 
 void buildDateInfoFromTm(DateInfo *di, const struct tm *t) {
@@ -61,6 +61,6 @@ void buildDateInfoFromTm(DateInfo *di, const struct tm *t) {
              MONTH_NAMES[di->month], di->day, di->year);
     int h12 = t->tm_hour % 12;
     if (h12 == 0) h12 = 12;
-    snprintf(di->timeStr, sizeof(di->timeStr), "%d:%02d %s",
+    snprintf(di->timeStr, sizeof(di->timeStr), "%d : %02d %s",
              h12, t->tm_min, t->tm_hour < 12 ? "AM" : "PM");
 }

@@ -5,7 +5,7 @@ struct DateInfo {
     const char *dayName;   // "Sunday"
     const char *hindiDay;  // "रविवार"
     char dateStr[32];      // "March 8, 2026"
-    char timeStr[16];      // "10:35 AM"
+    char timeStr[20];      // "10 : 35 AM"
 };
 
 struct MoonInfo {

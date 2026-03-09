@@ -175,9 +175,9 @@ static bool firaXRange(const char *s, int i_first, int i_last,
         get_text_bounds((GFXfont*)&FiraSans, buf, &x, &yt, &x1, &y1, &w_end, &h, NULL);
     }
 
-    // 4px padding each side; +1 for faux-bold; align to even byte boundary
-    *lo = (base + w_pre - 4) & ~1;
-    *hi = ((base + w_end + 5) + 1) & ~1;
+    // 6px left pad; 10px right pad (covers faux-bold +1 and glyph right bearing)
+    *lo = (base + w_pre - 6) & ~1;
+    *hi = ((base + w_end + 10) + 1) & ~1;
     if (*lo < 0) *lo = 0;
     if (*hi > EPD_WIDTH) *hi = EPD_WIDTH;
     return *hi > *lo;
