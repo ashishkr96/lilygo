@@ -24,7 +24,7 @@
 #define Y_DATE      324   // date baseline; top≈285
 #define Y_DIV2      340
 // Bottom section (y=340–540, 200px) — moon centre, weather right
-#define Y_BOTTOM_TEXT  496
+#define Y_BOTTOM_TEXT  440   // baseline at vertical centre of bottom section (340–540)
 
 // ── 7-Segment time display ────────────────────────────────────────────────────
 #define SEG_TOP_Y    214   // top of digit block
@@ -36,10 +36,10 @@
 
 // ── Weather / moon bottom section ─────────────────────────────────────────────
 #define MOON_ICON_CX          80   // moon icon x (left edge indicator)
-#define MOON_ICON_CY         426   // moon icon y
+#define MOON_ICON_CY         440   // moon icon y — vertical centre of bottom section (340–540)
 #define MOON_ICON_R           26   // moon icon radius
 #define WEATHER_ICON_CX      880   // weather icon x (right edge)
-#define WEATHER_ICON_CY      426   // weather icon y
+#define WEATHER_ICON_CY      440   // weather icon y
 #define WEATHER_ICON_R        26   // weather icon radius
 #define WEATHER_TEXT_CX      800   // x-centre for weather text (right side)
 #define WEATHER_INTERVAL_MS  (30UL * 60UL * 1000UL)   // re-fetch every 30 min
