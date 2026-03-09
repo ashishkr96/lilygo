@@ -29,8 +29,9 @@
 // 7-seg block occupies rows SEG_TOP_Y … SEG_TOP_Y+SEG_DH  (298–386)
 #define Y_DATE      432
 #define Y_DIV2      448
-#define Y_PHASE     510   // moon phase text, left column
-#define Y_TITHI     534   // moon tithi text, left column
+// Bottom section (y=452–540, 88px) — icons + ONE combined text row each side
+// Two FiraSans rows need 50px separation; only one fits cleanly → combine
+#define Y_BOTTOM_TEXT  506   // single text row, vertically centred below icons
 
 // ── 7-Segment time display ────────────────────────────────────────────────────
 #define SEG_TOP_Y    298   // top of digit block
@@ -40,10 +41,13 @@
 #define SEG_GAP        8   // gap between adjacent elements px
 #define SEG_COL_W     18   // colon block width px
 
-// ── Weather section ───────────────────────────────────────────────────────────
-#define WEATHER_ICON_CX      810   // icon centre x (right side, mirrors moon)
-#define WEATHER_ICON_CY      480   // icon centre y
-#define WEATHER_ICON_R        22   // icon radius
-#define MOON_TEXT_CX         220   // x-centre for moon phase/tithi column
-#define WEATHER_TEXT_CX      760   // x-centre for weather temp/condition column
+// ── Weather / moon bottom section ─────────────────────────────────────────────
+#define MOON_ICON_CX         160   // moon icon x (shifted right from edge)
+#define MOON_ICON_CY         478   // moon icon y
+#define MOON_ICON_R           24   // moon icon radius
+#define WEATHER_ICON_CX      800   // weather icon x (right side)
+#define WEATHER_ICON_CY      478   // weather icon y
+#define WEATHER_ICON_R        24   // weather icon radius
+#define MOON_TEXT_CX         310   // x-centre for moon text (right of icon)
+#define WEATHER_TEXT_CX      670   // x-centre for weather text (left of icon)
 #define WEATHER_INTERVAL_MS  (30UL * 60UL * 1000UL)   // re-fetch every 30 min

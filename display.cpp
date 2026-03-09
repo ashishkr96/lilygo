@@ -282,9 +282,9 @@ static void pushSubRect(int32_t rx, int32_t ry, int32_t rw, int32_t rh) {
  *          [7-seg digits rows 298–386]
  *  y=432   "March 9, 2026"
  *          ─── divider y=448 ───
- *  left:   moon icon cx=120 cy=484 r=28   │  right: weather icon cx=810 cy=480 r=22
- *  y=510   moon phase (col cx=220)        │         temperature (col cx=760)
- *  y=534   moon tithi  (col cx=220)       │         condition   (col cx=760)
+ *  left:   moon cx=160 cy=478 r=24        │  right: weather cx=800 cy=478 r=24
+ *  y=506   "Waning  Krishna Panchami"     │         "+24°C  Partly cloudy"
+ *          one combined row per side, col cx=310 / cx=670
  */
 void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     epd_poweron();
@@ -301,16 +301,17 @@ void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     drawFira(di->dateStr,  Y_DATE);
     drawRule(Y_DIV2);
 
-    drawMoonIcon(MOON_CX, MOON_CY, MOON_R, mi->age);
-    char tithi_line[64];
-    snprintf(tithi_line, sizeof(tithi_line), "%s %s", mi->paksha, mi->tithi);
-    drawFiraCol(mi->phase,   MOON_TEXT_CX, Y_PHASE);
-    drawFiraCol(tithi_line,  MOON_TEXT_CX, Y_TITHI);
+    // Bottom: moon (left half) + weather (right half) — one text row each
+    drawMoonIcon(MOON_ICON_CX, MOON_ICON_CY, MOON_ICON_R, mi->age);
+    char moon_line[80];
+    snprintf(moon_line, sizeof(moon_line), "%s  %s %s", mi->phase, mi->paksha, mi->tithi);
+    drawFiraCol(moon_line, MOON_TEXT_CX, Y_BOTTOM_TEXT);
 
     if (wi && wi->valid) {
         drawWeatherIcon(wi->condition, WEATHER_ICON_CX, WEATHER_ICON_CY, WEATHER_ICON_R);
-        drawFiraCol(wi->temp,      WEATHER_TEXT_CX, Y_PHASE);
-        drawFiraCol(wi->condition, WEATHER_TEXT_CX, Y_TITHI);
+        char wx_line[64];
+        snprintf(wx_line, sizeof(wx_line), "%s  %s", wi->temp, wi->condition);
+        drawFiraCol(wx_line, WEATHER_TEXT_CX, Y_BOTTOM_TEXT);
     }
 
     epd_draw_grayscale_image(epd_full_screen(), framebuffer);
