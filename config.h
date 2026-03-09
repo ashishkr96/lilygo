@@ -6,11 +6,6 @@
 // ── Timing ───────────────────────────────────────────────────────────────────
 #define TOUCH_DISPLAY_MS  10000   // ms to show joke before reverting
 
-// ── Moon icon ────────────────────────────────────────────────────────────────
-#define MOON_CX  120
-#define MOON_CY  484
-#define MOON_R    28
-
 // ── WiFi credentials ─────────────────────────────────────────────────────────
 #include "credentials.h"   // gitignored — copy credentials.h.example and fill in
 
@@ -24,30 +19,30 @@
 #define Y_OWNER      65
 #define Y_NOTTOUCH  115
 #define Y_DIV1      140
-#define Y_DAY_EN    195   // raised to make room for 7-seg time block
-#define Y_DAY_HI    268   // NotoDevanagari ascender=56; bottom≈294
-// 7-seg block occupies rows SEG_TOP_Y … SEG_TOP_Y+SEG_DH  (298–386)
-#define Y_DATE      432
-#define Y_DIV2      448
-// Bottom section (y=452–540, 88px) — icons + ONE combined text row each side
-// Two FiraSans rows need 50px separation; only one fits cleanly → combine
-#define Y_BOTTOM_TEXT  506   // single text row, vertically centred below icons
+#define Y_DAY_EN    190   // English day; top≈151, bottom≈201
+#define Y_DAY_HI    272   // NotoDevanagari ascender=56; top≈216, bottom≈298
+// 7-seg block occupies rows SEG_TOP_Y … SEG_TOP_Y+SEG_DH  (300–370)
+#define Y_DATE      420   // date baseline; top≈381
+#define Y_DIV2      440
+// Bottom section (y=440–540, 100px) — icons left/right, two text rows centred
+#define Y_PHASE      478   // row 1: moon phase name / weather temp
+#define Y_TITHI      526   // row 2: paksha+tithi / weather condition
 
 // ── 7-Segment time display ────────────────────────────────────────────────────
-#define SEG_TOP_Y    298   // top of digit block
-#define SEG_DH        88   // digit height px
-#define SEG_DW        58   // digit width px
-#define SEG_T         10   // segment thickness px
+#define SEG_TOP_Y    300   // top of digit block
+#define SEG_DH        70   // digit height px (reduced to free bottom space)
+#define SEG_DW        52   // digit width px
+#define SEG_T          9   // segment thickness px
 #define SEG_GAP        8   // gap between adjacent elements px
-#define SEG_COL_W     18   // colon block width px
+#define SEG_COL_W     16   // colon block width px
 
 // ── Weather / moon bottom section ─────────────────────────────────────────────
-#define MOON_ICON_CX         160   // moon icon x (shifted right from edge)
-#define MOON_ICON_CY         478   // moon icon y
-#define MOON_ICON_R           24   // moon icon radius
-#define WEATHER_ICON_CX      800   // weather icon x (right side)
-#define WEATHER_ICON_CY      478   // weather icon y
-#define WEATHER_ICON_R        24   // weather icon radius
-#define MOON_TEXT_CX         310   // x-centre for moon text (right of icon)
-#define WEATHER_TEXT_CX      670   // x-centre for weather text (left of icon)
+#define MOON_ICON_CX          100   // moon icon x (left edge area)
+#define MOON_ICON_CY          490   // moon icon y (vertically centred in bottom section)
+#define MOON_ICON_R            20   // moon icon radius
+#define WEATHER_ICON_CX       860   // weather icon x (right edge area)
+#define WEATHER_ICON_CY       490   // weather icon y
+#define WEATHER_ICON_R         20   // weather icon radius
+#define MOON_TEXT_CX          320   // x-centre for moon text (left half, right of icon)
+#define WEATHER_TEXT_CX       640   // x-centre for weather text (right half, left of icon)
 #define WEATHER_INTERVAL_MS  (30UL * 60UL * 1000UL)   // re-fetch every 30 min
