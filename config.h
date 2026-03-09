@@ -19,28 +19,27 @@
 #define Y_OWNER      65
 #define Y_NOTTOUCH  115
 #define Y_DIV1      140
-#define Y_DAY_EN    225   // English day; top≈186 (46px below divider), bottom≈237
-// 7-seg block: 298–386 (61px gap after day name)
-#define Y_DATE      432   // date baseline
-#define Y_DIV2      448
-// Bottom section (y=448–540, 92px) — moon icon left, weather icon right, one text row each
-#define Y_BOTTOM_TEXT  506
+#define Y_DAY_EN    195   // English day; top≈156, bottom≈207
+// 7-seg block: 214–278 (7px gap after day name, smaller digits)
+#define Y_DATE      324   // date baseline; top≈285
+#define Y_DIV2      340
+// Bottom section (y=340–540, 200px) — moon centre, weather right
+#define Y_BOTTOM_TEXT  496
 
 // ── 7-Segment time display ────────────────────────────────────────────────────
-#define SEG_TOP_Y    298   // top of digit block
-#define SEG_DH        88   // digit height px
-#define SEG_DW        58   // digit width px
-#define SEG_T         10   // segment thickness px
-#define SEG_GAP        8   // gap between adjacent elements px
-#define SEG_COL_W     18   // colon block width px
+#define SEG_TOP_Y    214   // top of digit block
+#define SEG_DH        64   // digit height px (smaller)
+#define SEG_DW        44   // digit width px
+#define SEG_T          8   // segment thickness px
+#define SEG_GAP        7   // gap between adjacent elements px
+#define SEG_COL_W     13   // colon block width px
 
 // ── Weather / moon bottom section ─────────────────────────────────────────────
-#define MOON_ICON_CX         100   // moon icon x
-#define MOON_ICON_CY         490   // moon icon y
-#define MOON_ICON_R           20   // moon icon radius
-#define WEATHER_ICON_CX      860   // weather icon x
-#define WEATHER_ICON_CY      490   // weather icon y
-#define WEATHER_ICON_R        20   // weather icon radius
-#define MOON_TEXT_CX         300   // x-centre for moon phase text (left half)
-#define WEATHER_TEXT_CX      680   // x-centre for weather text (right half)
+#define MOON_ICON_CX          80   // moon icon x (left edge indicator)
+#define MOON_ICON_CY         426   // moon icon y
+#define MOON_ICON_R           26   // moon icon radius
+#define WEATHER_ICON_CX      880   // weather icon x (right edge)
+#define WEATHER_ICON_CY      426   // weather icon y
+#define WEATHER_ICON_R        26   // weather icon radius
+#define WEATHER_TEXT_CX      800   // x-centre for weather text (right side)
 #define WEATHER_INTERVAL_MS  (30UL * 60UL * 1000UL)   // re-fetch every 30 min

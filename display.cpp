@@ -260,12 +260,12 @@ static void drawTimeSevenSeg(const char *timeStr) {
  *  y= 65   "Owner: Ashish Kumar Choubey"
  *  y=115   "Do not touch this 😤"
  *          ─── divider y=140 ───
- *  y=225   "Sunday"             (top≈186, bottom≈237)
- *          [7-seg digits rows 298–386]
- *  y=432   "March 9, 2026"
- *          ─── divider y=448 ───
- *  left:   moon cx=100 cy=490 r=20        │  right: weather cx=860 cy=490 r=20
- *  y=506   "Waning Gibbous"               │         "+24°C  Partly cloudy"
+ *  y=195   "Sunday"             (top≈156, bottom≈207)
+ *          [7-seg digits rows 214–278]  (smaller, tight under day name)
+ *  y=324   "March 9, 2026"
+ *          ─── divider y=340 ───
+ *  moon icon cx=80 cy=426 r=26  │  "Waning Gibbous" drawFira centred │  weather cx=880
+ *  y=496   ← full-width centred moon phase ─────────────── weather "+24°C  Cloudy" →
  */
 void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     epd_poweron();
@@ -281,9 +281,9 @@ void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     drawFira(di->dateStr,  Y_DATE);
     drawRule(Y_DIV2);
 
-    // Bottom: moon left, weather right — one inline row each
+    // Bottom: moon icon (left edge) + phase centred on screen; weather icon+text on right
     drawMoonIcon(MOON_ICON_CX, MOON_ICON_CY, MOON_ICON_R, mi->age);
-    drawFiraCol(mi->phase, MOON_TEXT_CX, Y_BOTTOM_TEXT);
+    drawFira(mi->phase, Y_BOTTOM_TEXT);   // full-width centred
 
     if (wi && wi->valid) {
         drawWeatherIcon(wi->condition, WEATHER_ICON_CX, WEATHER_ICON_CY, WEATHER_ICON_R);
