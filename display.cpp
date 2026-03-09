@@ -260,14 +260,13 @@ static void drawTimeSevenSeg(const char *timeStr) {
  *  y= 65   "Owner: Ashish Kumar Choubey"
  *  y=115   "Do not touch this 😤"
  *          ─── divider y=140 ───
- *  y=190   "Sunday"             (top≈151, bottom≈201)
- *  y=272   "रविवार"             (top≈216, bottom≈298)
+ *  y=190   "Sunday"             (top≈151, bottom≈202)
+ *  y=263   "रविवार"             (top≈218, bottom≈284, 24pt Deva)
  *          [7-seg digits rows 300–370]
  *  y=420   "March 9, 2026"
  *          ─── divider y=440 ───
  *  left:   moon cx=100 cy=490 r=20        │  right: weather cx=860 cy=490 r=20
- *  y=478   "Waning Gibbous"               │         "+24°C"
- *  y=526   "Krishna Panchami"             │         "Partly cloudy"
+ *  y=506   "Waning Gibbous  Krishna P."   │         "+24°C  Partly cloudy"
  */
 void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     epd_poweron();
@@ -284,17 +283,17 @@ void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     drawFira(di->dateStr,  Y_DATE);
     drawRule(Y_DIV2);
 
-    // Bottom: moon left, weather right — two text rows each
+    // Bottom: moon left, weather right — one inline row each
     drawMoonIcon(MOON_ICON_CX, MOON_ICON_CY, MOON_ICON_R, mi->age);
-    drawFiraCol(mi->phase, MOON_TEXT_CX, Y_PHASE);
-    char tithi_line[64];
-    snprintf(tithi_line, sizeof(tithi_line), "%s %s", mi->paksha, mi->tithi);
-    drawFiraCol(tithi_line, MOON_TEXT_CX, Y_TITHI);
+    char moon_line[80];
+    snprintf(moon_line, sizeof(moon_line), "%s  %s %s", mi->phase, mi->paksha, mi->tithi);
+    drawFiraCol(moon_line, MOON_TEXT_CX, Y_BOTTOM_TEXT);
 
     if (wi && wi->valid) {
         drawWeatherIcon(wi->condition, WEATHER_ICON_CX, WEATHER_ICON_CY, WEATHER_ICON_R);
-        drawFiraCol(wi->temp, WEATHER_TEXT_CX, Y_PHASE);
-        drawFiraCol(wi->condition, WEATHER_TEXT_CX, Y_TITHI);
+        char wx_line[64];
+        snprintf(wx_line, sizeof(wx_line), "%s  %s", wi->temp, wi->condition);
+        drawFiraCol(wx_line, WEATHER_TEXT_CX, Y_BOTTOM_TEXT);
     }
 
     epd_draw_grayscale_image(epd_full_screen(), framebuffer);
