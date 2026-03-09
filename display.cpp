@@ -252,23 +252,6 @@ static void drawTimeSevenSeg(const char *timeStr) {
     cx = L.x_ampm + 1; yt = L.y_ampm; write_string((GFXfont*)&FiraSans, ampm, &cx, &yt, framebuffer);
 }
 
-// ── Partial-refresh helpers ───────────────────────────────────────────────────
-
-// Copy a sub-rect from the global framebuffer into a packed tmp buffer and
-// push it to the EPD. epd_poweron() must already be active.
-static void pushSubRect(int32_t rx, int32_t ry, int32_t rw, int32_t rh) {
-    uint8_t *tmp = (uint8_t*)malloc(rw * rh / 2);
-    if (!tmp) return;
-    for (int r = 0; r < rh; r++)
-        memcpy(tmp + r * rw / 2,
-               framebuffer + (ry + r) * EPD_WIDTH / 2 + rx / 2,
-               rw / 2);
-    Rect_t rgn = {.x = rx, .y = ry, .width = rw, .height = rh};
-    epd_clear_area(rgn);
-    epd_draw_grayscale_image(rgn, tmp);
-    free(tmp);
-}
-
 // ── Screen renderers ──────────────────────────────────────────────────────────
 
 /*
@@ -277,14 +260,14 @@ static void pushSubRect(int32_t rx, int32_t ry, int32_t rw, int32_t rh) {
  *  y= 65   "Owner: Ashish Kumar Choubey"
  *  y=115   "Do not touch this 😤"
  *          ─── divider y=140 ───
- *  y=195   "Sunday"
- *  y=268   "रविवार"   (ascender=56; bottom≈294)
- *          [7-seg digits rows 298–386]
- *  y=432   "March 9, 2026"
- *          ─── divider y=448 ───
- *  left:   moon cx=160 cy=478 r=24        │  right: weather cx=800 cy=478 r=24
- *  y=506   "Waning  Krishna Panchami"     │         "+24°C  Partly cloudy"
- *          one combined row per side, col cx=310 / cx=670
+ *  y=190   "Sunday"             (top≈151, bottom≈201)
+ *  y=272   "रविवार"             (top≈216, bottom≈298)
+ *          [7-seg digits rows 300–370]
+ *  y=420   "March 9, 2026"
+ *          ─── divider y=440 ───
+ *  left:   moon cx=100 cy=490 r=20        │  right: weather cx=860 cy=490 r=20
+ *  y=478   "Waning Gibbous"               │         "+24°C"
+ *  y=526   "Krishna Panchami"             │         "Partly cloudy"
  */
 void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     epd_poweron();
@@ -301,17 +284,17 @@ void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     drawFira(di->dateStr,  Y_DATE);
     drawRule(Y_DIV2);
 
-    // Bottom: moon (left half) + weather (right half) — one text row each
+    // Bottom: moon left, weather right — two text rows each
     drawMoonIcon(MOON_ICON_CX, MOON_ICON_CY, MOON_ICON_R, mi->age);
-    char moon_line[80];
-    snprintf(moon_line, sizeof(moon_line), "%s  %s %s", mi->phase, mi->paksha, mi->tithi);
-    drawFiraCol(moon_line, MOON_TEXT_CX, Y_BOTTOM_TEXT);
+    drawFiraCol(mi->phase, MOON_TEXT_CX, Y_PHASE);
+    char tithi_line[64];
+    snprintf(tithi_line, sizeof(tithi_line), "%s %s", mi->paksha, mi->tithi);
+    drawFiraCol(tithi_line, MOON_TEXT_CX, Y_TITHI);
 
     if (wi && wi->valid) {
         drawWeatherIcon(wi->condition, WEATHER_ICON_CX, WEATHER_ICON_CY, WEATHER_ICON_R);
-        char wx_line[64];
-        snprintf(wx_line, sizeof(wx_line), "%s  %s", wi->temp, wi->condition);
-        drawFiraCol(wx_line, WEATHER_TEXT_CX, Y_BOTTOM_TEXT);
+        drawFiraCol(wi->temp, WEATHER_TEXT_CX, Y_PHASE);
+        drawFiraCol(wi->condition, WEATHER_TEXT_CX, Y_TITHI);
     }
 
     epd_draw_grayscale_image(epd_full_screen(), framebuffer);
@@ -326,75 +309,22 @@ void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
 }
 
 void renderTimeRegion(const DateInfo *di) {
-    if (strlen(prevTimeStr) == 0) {
-        // No previous state — full 7-seg strip
-        int32_t ry = SEG_TOP_Y - 2, rh = SEG_DH + 4;
-        for (int r = ry; r < ry + rh; r++)
-            memset(framebuffer + r * EPD_WIDTH / 2, 0xFF, EPD_WIDTH / 2);
-        drawTimeSevenSeg(di->timeStr);
-        epd_poweron();
-        Rect_t rgn = {.x = 0, .y = ry, .width = EPD_WIDTH, .height = rh};
-        epd_clear_area(rgn);
-        epd_draw_grayscale_image(rgn, framebuffer + ry * EPD_WIDTH / 2);
-        epd_poweroff();
-        strcpy(prevTimeStr, di->timeStr);
-        return;
-    }
+    // Full-width strip covering the 7-seg block — avoids per-digit boundary artifacts.
+    int32_t ry = SEG_TOP_Y - 2, rh = SEG_DH + 4;
 
-    int old_h, old_m, new_h, new_m;
-    char old_ampm[4] = "", new_ampm[4] = "";
-    sscanf(prevTimeStr,   "%d : %d %3s", &old_h, &old_m, old_ampm);
-    sscanf(di->timeStr, "%d : %d %3s", &new_h, &new_m, new_ampm);
+    // Clear the strip in framebuffer then redraw digits
+    for (int r = ry; r < ry + rh; r++)
+        memset(framebuffer + r * EPD_WIDTH / 2, 0xFF, EPD_WIDTH / 2);
+    drawTimeSevenSeg(di->timeStr);
 
-    // Layout change (e.g. 9→10 or 12→1) — full strip redraw
-    if ((old_h >= 10) != (new_h >= 10)) {
-        int32_t ry = SEG_TOP_Y - 2, rh = SEG_DH + 4;
-        for (int r = ry; r < ry + rh; r++)
-            memset(framebuffer + r * EPD_WIDTH / 2, 0xFF, EPD_WIDTH / 2);
-        drawTimeSevenSeg(di->timeStr);
-        epd_poweron();
-        Rect_t rgn = {.x = 0, .y = ry, .width = EPD_WIDTH, .height = rh};
-        epd_clear_area(rgn);
-        epd_draw_grayscale_image(rgn, framebuffer + ry * EPD_WIDTH / 2);
-        epd_poweroff();
-        strcpy(prevTimeStr, di->timeStr);
-        return;
-    }
-
-    SegLayout L = computeSegLayout(new_h, new_ampm);
-
-    struct DigitChange { int32_t x; int d; };
-    DigitChange changes[4];
-    int nc = 0;
-
-    if (L.n_h == 2) {
-        if (old_h / 10 != new_h / 10) changes[nc++] = {L.xd[0], new_h / 10};
-        if (old_h % 10 != new_h % 10) changes[nc++] = {L.xd[1], new_h % 10};
-    } else {
-        if (old_h % 10 != new_h % 10) changes[nc++] = {L.xd[0], new_h % 10};
-    }
-    if (old_m / 10 != new_m / 10) changes[nc++] = {L.xd[L.n_h],   new_m / 10};
-    if (old_m % 10 != new_m % 10) changes[nc++] = {L.xd[L.n_h+1], new_m % 10};
-
-    if (nc == 0) { strcpy(prevTimeStr, di->timeStr); return; }
-
-    // Clear and redraw each changed digit cell in the framebuffer
-    for (int i = 0; i < nc; i++) {
-        int32_t rx = changes[i].x;
-        for (int r = SEG_TOP_Y; r < SEG_TOP_Y + SEG_DH; r++)
-            memset(framebuffer + r * EPD_WIDTH / 2 + rx / 2, 0xFF, SEG_DW / 2);
-        drawSeg(changes[i].d, changes[i].x, SEG_TOP_Y);
-    }
-
-    // Push changed digit rects in one power session
     epd_poweron();
-    for (int i = 0; i < nc; i++) {
-        pushSubRect(changes[i].x, SEG_TOP_Y, SEG_DW, SEG_DH);
-        Serial.printf("7seg x=%d d=%d\n", changes[i].x, changes[i].d);
-    }
+    Rect_t rgn = {.x = 0, .y = ry, .width = EPD_WIDTH, .height = rh};
+    epd_clear_area(rgn);
+    epd_draw_grayscale_image(rgn, framebuffer + ry * EPD_WIDTH / 2);
     epd_poweroff();
 
     strcpy(prevTimeStr, di->timeStr);
+    Serial.printf("Partial: %s\n", di->timeStr);
 }
 
 void renderTouched() {
