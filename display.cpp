@@ -260,13 +260,13 @@ static void drawTimeSevenSeg(const char *timeStr) {
  *  y= 65   "Owner: Ashish Kumar Choubey"
  *  y=115   "Do not touch this 😤"
  *          ─── divider y=140 ───
- *  y=190   "Sunday"             (top≈151, bottom≈202)
- *  y=263   "रविवार"             (top≈218, bottom≈284, 24pt Deva)
- *          [7-seg digits rows 300–370]
- *  y=420   "March 9, 2026"
- *          ─── divider y=440 ───
- *  left:   moon cx=100 cy=490 r=20        │  right: weather cx=860 cy=490 r=20
- *  y=506   "Waning Gibbous  Krishna P."   │         "+24°C  Partly cloudy"
+ *  y=184   "Sunday"             (top≈145, bottom≈196)
+ *  y=264   "रविवार"             (top≈208, 12px gap, bottom≈290, 30pt Deva)
+ *          [7-seg digits rows 298–368]
+ *  y=416   "March 9, 2026"
+ *          ─── divider y=434 ───
+ *  left:   moon cx=100 cy=484 r=20        │  right: weather cx=860 cy=484 r=20
+ *  y=502   "Waning Gibbous  Panchami"     │         "+24°C  Partly cloudy"
  */
 void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     epd_poweron();
@@ -286,7 +286,7 @@ void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     // Bottom: moon left, weather right — one inline row each
     drawMoonIcon(MOON_ICON_CX, MOON_ICON_CY, MOON_ICON_R, mi->age);
     char moon_line[80];
-    snprintf(moon_line, sizeof(moon_line), "%s  %s %s", mi->phase, mi->paksha, mi->tithi);
+    snprintf(moon_line, sizeof(moon_line), "%s  %s", mi->phase, mi->tithi);
     drawFiraCol(moon_line, MOON_TEXT_CX, Y_BOTTOM_TEXT);
 
     if (wi && wi->valid) {

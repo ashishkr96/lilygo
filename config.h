@@ -16,20 +16,20 @@
 #define REDRAW_INTERVAL_MS  60000UL          // poll interval; re-render only on day change
 
 // ── Layout: Y-baselines (FiraSans ascender=39, advance_y=50) ─────────────────
-// NotoDevanagari 24pt: ascender=45, descender=21, advance_y=65
+// NotoDevanagari 30pt: ascender=56, descender=26, advance_y=82
 #define Y_OWNER      65
 #define Y_NOTTOUCH  115
 #define Y_DIV1      140
-#define Y_DAY_EN    190   // English day; top≈151, bottom≈202
-#define Y_DAY_HI    263   // Hindi day; top≈218 (16px gap), bottom≈284
-// 7-seg block: 300–370 (16px gap after Hindi)
-#define Y_DATE      420   // date baseline; top≈381
-#define Y_DIV2      440
-// Bottom section (y=440–540, 100px) — icons + ONE inline row each side
-#define Y_BOTTOM_TEXT  506   // single inline row, vertically centred
+#define Y_DAY_EN    184   // English day; top≈145, bottom≈196
+#define Y_DAY_HI    264   // Hindi day; top≈208 (12px gap), bottom≈290
+// 7-seg block: 298–368 (8px gap after Hindi bottom)
+#define Y_DATE      416   // date baseline; top≈377
+#define Y_DIV2      434
+// Bottom section (y=434–540, 106px) — icons + ONE inline row each side
+#define Y_BOTTOM_TEXT  502   // single inline row, vertically centred
 
 // ── 7-Segment time display ────────────────────────────────────────────────────
-#define SEG_TOP_Y    300   // top of digit block
+#define SEG_TOP_Y    298   // top of digit block
 #define SEG_DH        70   // digit height px (reduced to free bottom space)
 #define SEG_DW        52   // digit width px
 #define SEG_T          9   // segment thickness px
@@ -38,11 +38,11 @@
 
 // ── Weather / moon bottom section ─────────────────────────────────────────────
 #define MOON_ICON_CX          100   // moon icon x (left edge area)
-#define MOON_ICON_CY          490   // moon icon y (vertically centred in bottom section)
+#define MOON_ICON_CY          484   // moon icon y (vertically centred in bottom section)
 #define MOON_ICON_R            20   // moon icon radius
 #define WEATHER_ICON_CX       860   // weather icon x (right edge area)
-#define WEATHER_ICON_CY       490   // weather icon y
+#define WEATHER_ICON_CY       484   // weather icon y
 #define WEATHER_ICON_R         20   // weather icon radius
 #define MOON_TEXT_CX          320   // x-centre for moon text (left half, right of icon)
-#define WEATHER_TEXT_CX       640   // x-centre for weather text (right half, left of icon)
+#define WEATHER_TEXT_CX       660   // x-centre for weather text (right half, left of icon)
 #define WEATHER_INTERVAL_MS  (30UL * 60UL * 1000UL)   // re-fetch every 30 min
