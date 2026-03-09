@@ -39,6 +39,8 @@ python3 tests/test_algorithms.py -v
 |---|---|
 | `lilygo.ino` | `setup()` + `loop()` only — entry point |
 | `config.h` | All layout Y-positions, moon icon params, timing constants |
+| `credentials.h` | WiFi SSID + password — **gitignored, never committed** |
+| `credentials.h.example` | Dummy template committed to repo; copy → `credentials.h` and fill in |
 | `types.h` | `DateInfo` and `MoonInfo` structs |
 | `date_calc.h/.cpp` | Compile-time date parsing; Zeller's congruence for DOW |
 | `moon_calc.h/.cpp` | Meeus synodic moon algorithm + Hindu tithi |
@@ -149,9 +151,27 @@ esp_lcd_i80_bus_config_t bus_config = {
 
 ---
 
+## WiFi Credentials
+
+WiFi credentials are **never committed**. The pattern:
+
+- `credentials.h` — real credentials, lives only on the device owner's machine, gitignored
+- `credentials.h.example` — dummy template committed to the repo
+
+To set up on a new machine:
+```bash
+cp credentials.h.example credentials.h
+# edit credentials.h and fill in real SSID / password
+```
+
+`config.h` includes `credentials.h` for the `WIFI_SSID` and `WIFI_PASSWORD` defines.
+
+---
+
 ## Known Limitations
 
-- Date is fixed at compile time (no RTC)
+- Date/time synced via NTP on boot; falls back to compile-time date if WiFi unavailable
+- Display refreshes every 60s to update the clock (EPD is slow ~2s per refresh)
 - Devanagari pre-base vowels may render out of position (no OpenType shaping)
 - EPD refresh is slow (~2s); avoid rapid successive redraws
 - `random()` seeding uses Arduino's default (reset-deterministic); jokes will appear

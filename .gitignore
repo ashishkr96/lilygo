@@ -1,3 +1,6 @@
+# WiFi credentials — never commit
+credentials.h
+
 # Arduino build artifacts
 build/
 *.elf

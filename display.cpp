@@ -6,8 +6,6 @@
 #include "devanagari.h"
 #include "display.h"
 #include "config.h"
-#include "date_calc.h"
-#include "moon_calc.h"
 #include "jokes.h"
 
 // ── Framebuffer ───────────────────────────────────────────────────────────────
@@ -103,10 +101,7 @@ void drawMoonIcon(int32_t cx, int32_t cy, int32_t r, float age) {
  *  y=490  "Waning Gibbous"
  *  y=534  "Krishna Panchami"
  */
-void renderMain() {
-    DateInfo di;  buildDateInfo(&di);
-    MoonInfo mi;  buildMoonInfo(&mi, di.year, di.month, di.day);
-
+void renderMain(const DateInfo *di, const MoonInfo *mi) {
     epd_poweron();
     epd_clear();
     memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
@@ -115,24 +110,25 @@ void renderMain() {
     drawFira("Do not touch this \xF0\x9F\x98\xA4", Y_NOTTOUCH);
     drawRule(Y_DIV1);
 
-    drawFira(di.dayName,  Y_DAY_EN);
-    drawDeva(di.hindiDay, Y_DAY_HI);
-    drawFira(di.dateStr,  Y_DATE);
+    drawFira(di->dayName,  Y_DAY_EN);
+    drawDeva(di->hindiDay, Y_DAY_HI);
+    drawFira(di->timeStr,  Y_TIME);
+    drawFira(di->dateStr,  Y_DATE);
     drawRule(Y_DIV2);
 
-    drawMoonIcon(MOON_CX, MOON_CY, MOON_R, mi.age);
+    drawMoonIcon(MOON_CX, MOON_CY, MOON_R, mi->age);
     char tithi_line[64];
-    snprintf(tithi_line, sizeof(tithi_line), "%s %s", mi.paksha, mi.tithi);
-    drawFira(mi.phase,   Y_PHASE);
+    snprintf(tithi_line, sizeof(tithi_line), "%s %s", mi->paksha, mi->tithi);
+    drawFira(mi->phase,   Y_PHASE);
     drawFira(tithi_line, Y_TITHI);
 
     epd_draw_grayscale_image(epd_full_screen(), framebuffer);
     epd_poweroff();
 
     Serial.printf("Main: %s | %s | Moon %.1fd %d%% %s | %s %s\n",
-                  di.dayName, di.dateStr,
-                  mi.age, mi.illum, mi.phase,
-                  mi.paksha, mi.tithi);
+                  di->dayName, di->dateStr,
+                  mi->age, mi->illum, mi->phase,
+                  mi->paksha, mi->tithi);
 }
 
 void renderTouched() {

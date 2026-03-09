@@ -44,4 +44,23 @@ void buildDateInfo(DateInfo *di) {
     di->hindiDay = DOW_HI[h];
     snprintf(di->dateStr, sizeof(di->dateStr), "%s %d, %d",
              MONTH_NAMES[di->month], di->day, di->year);
+    snprintf(di->timeStr, sizeof(di->timeStr), "--:-- --");  // no RTC at compile time
+}
+
+void buildDateInfoFromTm(DateInfo *di, const struct tm *t) {
+    di->day   = t->tm_mday;
+    di->month = t->tm_mon + 1;    // tm_mon is 0-based
+    di->year  = t->tm_year + 1900;
+
+    // Map tm_wday (0=Sun…6=Sat) → Zeller h (0=Sat,1=Sun,…6=Fri)
+    static const int wday_to_h[7] = {1, 2, 3, 4, 5, 6, 0};
+    int h = wday_to_h[t->tm_wday];
+    di->dayName  = DOW_EN[h];
+    di->hindiDay = DOW_HI[h];
+    snprintf(di->dateStr, sizeof(di->dateStr), "%s %d, %d",
+             MONTH_NAMES[di->month], di->day, di->year);
+    int h12 = t->tm_hour % 12;
+    if (h12 == 0) h12 = 12;
+    snprintf(di->timeStr, sizeof(di->timeStr), "%d:%02d %s",
+             h12, t->tm_min, t->tm_hour < 12 ? "AM" : "PM");
 }
