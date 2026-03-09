@@ -1,10 +1,10 @@
 /**
  * LilyGo 4.7" E-Paper (EPD47-S3) — Property Display
  *
- * Shows owner info, day/date in English + Hindi, and a graphical moon phase.
+ * Shows owner info, day/date in English + Hindi, 7-segment clock, moon phase,
+ * and live weather (temperature + condition icon) fetched from wttr.in.
  * Touch anywhere to see a random joke; screen reverts after 10 seconds.
- * Date/time is synced via NTP on boot (WiFiManager handles credentials).
- * Falls back to compile-time date if WiFi/NTP is unavailable.
+ * Date/time synced via NTP on boot; falls back to compile-time date if unavailable.
  *
  * Board settings (Arduino IDE):
  *   Board            : ESP32S3 Dev Module
@@ -29,11 +29,14 @@
 #include "display.h"
 #include "touch_mgr.h"
 #include "time_mgr.h"
+#include "weather.h"
 
 static DateInfo       currentDi;
 static MoonInfo       currentMi;
+static WeatherInfo    currentWi   = {};
 static int            lastRenderedDay = -1;
-static unsigned long  lastCheckMs     = 0;
+static unsigned long  lastCheckMs    = 0;
+static unsigned long  lastWeatherMs  = 0;   // millis() of last weather fetch
 static int16_t        tx, ty;
 
 // Rebuild currentDi/currentMi from the current NTP time.
@@ -57,29 +60,39 @@ void setup() {
 
     bool ntpOk = time_sync();
     if (!ntpOk || !refreshData()) {
-        // Fallback: use compile-time date
         Serial.println("Falling back to compile-time date");
         buildDateInfo(&currentDi);
         buildMoonInfo(&currentMi, currentDi.year, currentDi.month, currentDi.day);
     }
 
+    // Initial weather fetch
+    weather_fetch(&currentWi);
+    lastWeatherMs = millis();
+
     lastRenderedDay = currentDi.day;
     lastCheckMs     = millis();
-    renderMain(&currentDi, &currentMi);
+    renderMain(&currentDi, &currentMi, &currentWi);
 }
 
 void loop() {
     unsigned long now = millis();
 
-    // Re-render every minute to update the displayed time
     if (now - lastCheckMs >= REDRAW_INTERVAL_MS) {
         lastCheckMs = now;
         if (refreshData()) {
-            if (currentDi.day != lastRenderedDay) {
+            bool dayChanged     = (currentDi.day != lastRenderedDay);
+            bool weatherDue     = (now - lastWeatherMs >= WEATHER_INTERVAL_MS);
+
+            if (dayChanged || weatherDue) {
+                // Full render — update weather first if due
+                if (weatherDue || !currentWi.valid) {
+                    weather_fetch(&currentWi);
+                    lastWeatherMs = now;
+                }
                 lastRenderedDay = currentDi.day;
-                renderMain(&currentDi, &currentMi);   // full render on day change
+                renderMain(&currentDi, &currentMi, &currentWi);
             } else {
-                renderTimeRegion(&currentDi);           // partial update for time only
+                renderTimeRegion(&currentDi);   // only changed 7-seg digits
             }
         }
     }
@@ -88,7 +101,7 @@ void loop() {
         Serial.printf("Touched at %d,%d\n", tx, ty);
         renderTouched();
         delay(TOUCH_DISPLAY_MS);
-        renderMain(&currentDi, &currentMi);
+        renderMain(&currentDi, &currentMi, &currentWi);
         touch_drain();
     }
 

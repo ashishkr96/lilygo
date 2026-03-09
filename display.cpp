@@ -12,8 +12,7 @@
 uint8_t *framebuffer = NULL;
 
 // ── Partial-refresh state ─────────────────────────────────────────────────────
-static char prevTimeStr[32] = "";
-static char prevDateStr[32] = "";
+static char prevTimeStr[20] = "";
 
 void display_init() {
     framebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
@@ -25,15 +24,24 @@ void display_init() {
     epd_init();
 }
 
-// ── Text helpers ─────────────────────────────────────────────────────────────
+// ── Text helpers ──────────────────────────────────────────────────────────────
 
-// Render text centered horizontally, drawn twice (x, x+1) for faux-bold.
+// Full-width centered bold FiraSans text.
 void drawFira(const char *text, int32_t y) {
     int32_t x = 0, yt = y, x1, y1, w, h;
     get_text_bounds((GFXfont*)&FiraSans, text, &x, &yt, &x1, &y1, &w, &h, NULL);
     int32_t cx;
     cx = (EPD_WIDTH - w) / 2;     yt = y; write_string((GFXfont*)&FiraSans, text, &cx, &yt, framebuffer);
     cx = (EPD_WIDTH - w) / 2 + 1; yt = y; write_string((GFXfont*)&FiraSans, text, &cx, &yt, framebuffer);
+}
+
+// Column-centred bold FiraSans text (col_cx = desired x-centre of the string).
+static void drawFiraCol(const char *text, int32_t col_cx, int32_t y) {
+    int32_t x = 0, yt = y, x1, y1, w, h;
+    get_text_bounds((GFXfont*)&FiraSans, text, &x, &yt, &x1, &y1, &w, &h, NULL);
+    int32_t cx;
+    cx = col_cx - w / 2;     yt = y; write_string((GFXfont*)&FiraSans, text, &cx, &yt, framebuffer);
+    cx = col_cx - w / 2 + 1; yt = y; write_string((GFXfont*)&FiraSans, text, &cx, &yt, framebuffer);
 }
 
 void drawDeva(const char *text, int32_t y) {
@@ -49,20 +57,6 @@ void drawRule(int32_t y) {
 }
 
 // ── Moon icon ─────────────────────────────────────────────────────────────────
-// For each scan row, compute the lit x-range via a cosine terminator ellipse,
-// then fill those pixels black.  Circle outline drawn last.
-//
-//   Waxing (age 0→SYN/2): lit on right.
-//     term_x = cx + half_chord * cos(π * age / (SYN/2))
-//     age=0  → term_x = xr  → nothing lit   (new moon)
-//     age=SYN/4 → term_x = cx → right half  (first quarter)
-//     age=SYN/2 → term_x = xl → full disk   (full moon)
-//
-//   Waning (age SYN/2→SYN): lit on left.
-//     term_x = cx + half_chord * cos(π * (age-SYN/2) / (SYN/2))
-//     age=SYN/2 → term_x = xr → full disk   (full moon)
-//     age=3*SYN/4 → term_x = cx → left half (last quarter)
-//     age=SYN  → term_x = xl → nothing lit  (new moon)
 void drawMoonIcon(int32_t cx, int32_t cy, int32_t r, float age) {
     const double SYN = 29.530588853;
     for (int dy = -r; dy <= r; dy++) {
@@ -74,12 +68,10 @@ void drawMoonIcon(int32_t cx, int32_t cy, int32_t r, float age) {
         int lit_l, lit_r;
         if (age <= SYN / 2.0) {
             double term_x = cx + half_chord * cos(M_PI * age / (SYN / 2.0));
-            lit_l = (int)term_x;
-            lit_r = xr;
+            lit_l = (int)term_x; lit_r = xr;
         } else {
             double term_x = cx + half_chord * cos(M_PI * (age - SYN / 2.0) / (SYN / 2.0));
-            lit_l = xl;
-            lit_r = (int)term_x;
+            lit_l = xl; lit_r = (int)term_x;
         }
         if (lit_l < xl) lit_l = xl;
         if (lit_r > xr) lit_r = xr;
@@ -89,102 +81,181 @@ void drawMoonIcon(int32_t cx, int32_t cy, int32_t r, float age) {
     epd_draw_circle(cx, cy, r, 0x00, framebuffer);
 }
 
-// ── Screen renderers ──────────────────────────────────────────────────────────
+// ── Weather icon ──────────────────────────────────────────────────────────────
 
-/*
- * Layout (960 × 540 px) — Y-baselines:
- *
- *  y= 65  "Owner: Ashish Kumar Choubey"   FiraSans (ascender=39)
- *  y=115  "Do not touch this 😤"
- *         ─── divider y=140 ───
- *  y=228  "Sunday"
- *  y=316  "रविवार"                         NotoDevanagari (ascender=56)
- *  y=400  "March 8, 2026"
- *         ─── divider y=428 ───
- *  moon icon  cx=120, cy=484, r=28
- *  y=490  "Waning Gibbous"
- *  y=534  "Krishna Panchami"
- */
-void renderMain(const DateInfo *di, const MoonInfo *mi) {
-    epd_poweron();
-    epd_clear();
-    memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
-
-    drawFira(OWNER_NAME,                            Y_OWNER);
-    drawFira("Do not touch this \xF0\x9F\x98\xA4", Y_NOTTOUCH);
-    drawRule(Y_DIV1);
-
-    drawFira(di->dayName,  Y_DAY_EN);
-    drawDeva(di->hindiDay, Y_DAY_HI);
-    drawFira(di->timeStr,  Y_TIME);
-    drawFira(di->dateStr,  Y_DATE);
-    drawRule(Y_DIV2);
-
-    drawMoonIcon(MOON_CX, MOON_CY, MOON_R, mi->age);
-    char tithi_line[64];
-    snprintf(tithi_line, sizeof(tithi_line), "%s %s", mi->paksha, mi->tithi);
-    drawFira(mi->phase,   Y_PHASE);
-    drawFira(tithi_line, Y_TITHI);
-
-    epd_draw_grayscale_image(epd_full_screen(), framebuffer);
-    epd_poweroff();
-
-    strcpy(prevTimeStr, di->timeStr);
-    strcpy(prevDateStr, di->dateStr);
-
-    Serial.printf("Main: %s | %s | Moon %.1fd %d%% %s | %s %s\n",
-                  di->dayName, di->dateStr,
-                  mi->age, mi->illum, mi->phase,
-                  mi->paksha, mi->tithi);
+static bool condHas(const char *cond, const char *kw) {
+    char buf[48]; int i = 0;
+    while (cond[i] && i < 47) { buf[i] = tolower((unsigned char)cond[i]); i++; }
+    buf[i] = '\0';
+    return strstr(buf, kw) != NULL;
 }
 
-// Find first/last indices where strings a and b differ.
-// Returns false if they are equal.
-static bool diffRange(const char *a, const char *b, int *first, int *last) {
-    int la = strlen(a), lb = strlen(b), l = la > lb ? la : lb;
-    *first = -1; *last = -1;
-    for (int i = 0; i < l; i++) {
-        char ca = i < la ? a[i] : '\0';
-        char cb = i < lb ? b[i] : '\0';
-        if (ca != cb) { if (*first < 0) *first = i; *last = i; }
-    }
-    return *first >= 0;
+// Cloud silhouette: three filled circles + flat base rect.
+static void drawCloud(int32_t cx, int32_t cy, int32_t r) {
+    epd_fill_circle(cx,        cy,        r * 2 / 3, 0x00, framebuffer);
+    epd_fill_circle(cx - r/2,  cy + r/5,  r / 2,     0x00, framebuffer);
+    epd_fill_circle(cx + r/2,  cy + r/5,  r / 2,     0x00, framebuffer);
+    epd_fill_rect(cx - r * 3/4, cy + r/5, r * 3/2, r * 2/5, 0x00, framebuffer);
 }
 
-// Pixel x-range (lo..hi, even-aligned) for chars [i_first..i_last] in a
-// centered FiraSans string at baseline y.  Returns false if degenerate.
-static bool firaXRange(const char *s, int i_first, int i_last,
-                        int32_t y, int32_t *lo, int32_t *hi) {
-    int32_t x, yt, x1, y1, w, h;
-    x = 0; yt = y;
-    get_text_bounds((GFXfont*)&FiraSans, s, &x, &yt, &x1, &y1, &w, &h, NULL);
-    int32_t base = (EPD_WIDTH - w) / 2;
+void drawWeatherIcon(const char *cond, int32_t cx, int32_t cy, int32_t r) {
+    if (condHas(cond, "thunder") || condHas(cond, "storm")) {
+        // Cloud + lightning bolt
+        drawCloud(cx, cy - r / 4, r);
+        // Zigzag bolt: three points
+        int bx = cx, by = cy + r / 4;
+        epd_draw_line(bx + r/4, by,        bx - r/8, by + r/3,   0x00, framebuffer);
+        epd_draw_line(bx - r/8, by + r/3,  bx + r/4, by + r/3,   0x00, framebuffer);
+        epd_draw_line(bx + r/4, by + r/3,  bx - r/4, by + r*2/3, 0x00, framebuffer);
+        // Thicken bolt
+        epd_draw_line(bx + r/4+1, by,      bx - r/8+1, by + r/3,   0x00, framebuffer);
+        epd_draw_line(bx + r/4+1, by + r/3, bx - r/4+1, by + r*2/3, 0x00, framebuffer);
 
-    int32_t w_pre = 0;
-    if (i_first > 0) {
-        char buf[64]; strncpy(buf, s, i_first); buf[i_first] = '\0';
-        x = 0; yt = y;
-        get_text_bounds((GFXfont*)&FiraSans, buf, &x, &yt, &x1, &y1, &w_pre, &h, NULL);
+    } else if (condHas(cond, "snow") || condHas(cond, "sleet") || condHas(cond, "blizzard")) {
+        // Cloud + snowflake dots
+        drawCloud(cx, cy - r / 4, r);
+        for (int i = -2; i <= 2; i++) {
+            int sx = cx + i * r / 3, sy = cy + r * 2 / 3;
+            epd_fill_rect(sx - 2, sy - 2, 5, 5, 0x00, framebuffer);
+        }
+
+    } else if (condHas(cond, "rain") || condHas(cond, "drizzle") || condHas(cond, "shower")) {
+        // Cloud + rain drops
+        drawCloud(cx, cy - r / 4, r);
+        for (int i = -2; i <= 2; i++) {
+            int rx2 = cx + i * r / 3, ry = cy + r / 2;
+            epd_draw_vline(rx2, ry, r / 3, 0x00, framebuffer);
+            epd_draw_vline(rx2 + 1, ry, r / 3, 0x00, framebuffer);
+        }
+
+    } else if (condHas(cond, "fog") || condHas(cond, "mist") || condHas(cond, "haze")) {
+        // Horizontal stripes
+        for (int i = -2; i <= 2; i++) {
+            int fy = cy + i * r / 3;
+            epd_draw_hline(cx - r, fy,     r * 2, 0x00, framebuffer);
+            epd_draw_hline(cx - r, fy + 1, r * 2, 0x00, framebuffer);
+        }
+
+    } else if (condHas(cond, "partly") || condHas(cond, "scattered") || condHas(cond, "broken")) {
+        // Small sun upper-left + cloud lower-right
+        int sr = r * 2 / 5;
+        epd_fill_circle(cx - r/3, cy - r/3, sr, 0x00, framebuffer);
+        epd_draw_circle(cx - r/3, cy - r/3, sr + 2, 0x00, framebuffer);
+        // Sun rays (4 cardinal)
+        for (int a = 0; a < 4; a++) {
+            float ang = a * M_PI / 2.0f;
+            int x1 = (cx - r/3) + (int)((sr + 3) * cosf(ang));
+            int y1 = (cy - r/3) + (int)((sr + 3) * sinf(ang));
+            int x2 = (cx - r/3) + (int)((sr + 7) * cosf(ang));
+            int y2 = (cy - r/3) + (int)((sr + 7) * sinf(ang));
+            epd_draw_line(x1, y1, x2, y2, 0x00, framebuffer);
+        }
+        drawCloud(cx + r / 5, cy + r / 5, r * 3 / 5);
+
+    } else if (condHas(cond, "cloud") || condHas(cond, "overcast")) {
+        drawCloud(cx, cy, r);
+
+    } else {
+        // Sunny / clear / fair / unknown → sun
+        epd_fill_circle(cx, cy, r * 5 / 8, 0x00, framebuffer);
+        epd_draw_circle(cx, cy, r * 5 / 8 + 2, 0x00, framebuffer);
+        for (int a = 0; a < 8; a++) {
+            float ang = a * M_PI / 4.0f;
+            int x1 = cx + (int)((r * 5/8 + 4) * cosf(ang));
+            int y1 = cy + (int)((r * 5/8 + 4) * sinf(ang));
+            int x2 = cx + (int)((r - 1) * cosf(ang));
+            int y2 = cy + (int)((r - 1) * sinf(ang));
+            epd_draw_line(x1, y1, x2, y2, 0x00, framebuffer);
+        }
     }
-
-    int32_t w_end = w;
-    int end = i_last + 1;
-    if (end < (int)strlen(s)) {
-        char buf[64]; strncpy(buf, s, end); buf[end] = '\0';
-        x = 0; yt = y;
-        get_text_bounds((GFXfont*)&FiraSans, buf, &x, &yt, &x1, &y1, &w_end, &h, NULL);
-    }
-
-    // 6px left pad; 10px right pad (covers faux-bold +1 and glyph right bearing)
-    *lo = (base + w_pre - 6) & ~1;
-    *hi = ((base + w_end + 10) + 1) & ~1;
-    if (*lo < 0) *lo = 0;
-    if (*hi > EPD_WIDTH) *hi = EPD_WIDTH;
-    return *hi > *lo;
 }
 
-// Extract rect (rx,ry,rw,rh) from the global framebuffer into a packed temp
-// buffer and push it to the EPD.  epd_poweron() must already be active.
+// ── 7-Segment time display ────────────────────────────────────────────────────
+// Bitmask: bit0=a(top) bit1=b(top-right) bit2=c(bot-right)
+//          bit3=d(bot) bit4=e(bot-left)  bit5=f(top-left)  bit6=g(middle)
+static const uint8_t SEG_MASK[10] = {
+    0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F
+};
+
+static void drawSeg(int d, int32_t x, int32_t y) {
+    if (d < 0 || d > 9) return;
+    uint8_t m = SEG_MASK[d];
+    const int32_t dw = SEG_DW, dh = SEG_DH, t = SEG_T, hw = dh / 2, g = 2;
+    if (m & 0x01) epd_fill_rect(x + t,      y,          dw - 2*t, t,          0x00, framebuffer);
+    if (m & 0x02) epd_fill_rect(x + dw - t, y + t + g,  t,        hw - t - g, 0x00, framebuffer);
+    if (m & 0x04) epd_fill_rect(x + dw - t, y + hw + g, t,        hw - t - g, 0x00, framebuffer);
+    if (m & 0x08) epd_fill_rect(x + t,      y + dh - t, dw - 2*t, t,          0x00, framebuffer);
+    if (m & 0x10) epd_fill_rect(x,          y + hw + g, t,        hw - t - g, 0x00, framebuffer);
+    if (m & 0x20) epd_fill_rect(x,          y + t + g,  t,        hw - t - g, 0x00, framebuffer);
+    if (m & 0x40) epd_fill_rect(x + t,      y + hw - t/2, dw - 2*t, t,        0x00, framebuffer);
+}
+
+static void drawSegColon(int32_t x, int32_t y) {
+    const int32_t t = SEG_T, dh = SEG_DH, cw = SEG_COL_W;
+    int32_t dx = x + (cw - t) / 2;
+    epd_fill_rect(dx, y + dh / 4,      t, t, 0x00, framebuffer);
+    epd_fill_rect(dx, y + 3*dh/4 - t,  t, t, 0x00, framebuffer);
+}
+
+struct SegLayout {
+    int32_t xd[4];      // digit x-positions: [0..n_h-1]=hour, [n_h..n_h+1]=minute
+    int32_t x_col;      // colon x
+    int32_t x_ampm;     // AM/PM text x
+    int32_t y_ampm;     // AM/PM text baseline
+    int     n_h;        // 1 or 2 hour digits
+};
+
+static SegLayout computeSegLayout(int h, const char *ampm) {
+    SegLayout L = {};
+    L.n_h = (h >= 10) ? 2 : 1;
+
+    int32_t ax = 0, ay = 0, ax1, ay1, ampm_w, ampm_h;
+    get_text_bounds((GFXfont*)&FiraSans, ampm, &ax, &ay, &ax1, &ay1, &ampm_w, &ampm_h, NULL);
+
+    // total_w = hour_digits + gap + colon + gap + m_tens + gap + m_units + gap + ampm
+    int32_t total_w = (int32_t)L.n_h * SEG_DW + (int32_t)(L.n_h - 1) * SEG_GAP
+                    + SEG_GAP + SEG_COL_W + SEG_GAP
+                    + SEG_DW + SEG_GAP + SEG_DW + SEG_GAP
+                    + ampm_w;
+    int32_t xp = ((EPD_WIDTH - total_w) / 2) & ~1;  // even-align
+
+    for (int i = 0; i < L.n_h; i++) {
+        L.xd[i] = xp; xp += SEG_DW;
+        if (i < L.n_h - 1) xp += SEG_GAP;
+    }
+    xp += SEG_GAP;
+    L.x_col = xp; xp += SEG_COL_W + SEG_GAP;
+    L.xd[L.n_h]   = xp; xp += SEG_DW + SEG_GAP;
+    L.xd[L.n_h+1] = xp; xp += SEG_DW + SEG_GAP;
+    L.x_ampm  = xp;
+    L.y_ampm  = SEG_TOP_Y + SEG_DH / 2 + 20;   // vertically centred in digit block
+    return L;
+}
+
+static void drawTimeSevenSeg(const char *timeStr) {
+    int h, m; char ampm[4] = "";
+    sscanf(timeStr, "%d : %d %3s", &h, &m, ampm);
+    SegLayout L = computeSegLayout(h, ampm);
+
+    if (L.n_h == 2) {
+        drawSeg(h / 10, L.xd[0], SEG_TOP_Y);
+        drawSeg(h % 10, L.xd[1], SEG_TOP_Y);
+    } else {
+        drawSeg(h % 10, L.xd[0], SEG_TOP_Y);
+    }
+    drawSegColon(L.x_col, SEG_TOP_Y);
+    drawSeg(m / 10, L.xd[L.n_h],   SEG_TOP_Y);
+    drawSeg(m % 10, L.xd[L.n_h+1], SEG_TOP_Y);
+
+    int32_t cx, yt;
+    cx = L.x_ampm;     yt = L.y_ampm; write_string((GFXfont*)&FiraSans, ampm, &cx, &yt, framebuffer);
+    cx = L.x_ampm + 1; yt = L.y_ampm; write_string((GFXfont*)&FiraSans, ampm, &cx, &yt, framebuffer);
+}
+
+// ── Partial-refresh helpers ───────────────────────────────────────────────────
+
+// Copy a sub-rect from the global framebuffer into a packed tmp buffer and
+// push it to the EPD. epd_poweron() must already be active.
 static void pushSubRect(int32_t rx, int32_t ry, int32_t rw, int32_t rh) {
     uint8_t *tmp = (uint8_t*)malloc(rw * rh / 2);
     if (!tmp) return;
@@ -198,49 +269,131 @@ static void pushSubRect(int32_t rx, int32_t ry, int32_t rw, int32_t rh) {
     free(tmp);
 }
 
-void renderTimeRegion(const DateInfo *di) {
-    // FiraSans metrics: ascender≈39, descender≈-11 → pad to [y-42, y+13]
-    const int32_t ASCEND = 42, DESCEND = 13;
+// ── Screen renderers ──────────────────────────────────────────────────────────
 
-    int tf, tl, df, dl;
-    bool t_diff = diffRange(prevTimeStr, di->timeStr, &tf, &tl);
-    bool d_diff = diffRange(prevDateStr, di->dateStr, &df, &dl);
-    if (!t_diff && !d_diff) return;
-
-    int32_t t_lo = 0, t_hi = 0, d_lo = 0, d_hi = 0;
-    bool t_valid = t_diff && firaXRange(di->timeStr, tf, tl, Y_TIME, &t_lo, &t_hi);
-    bool d_valid = d_diff && firaXRange(di->dateStr, df, dl, Y_DATE, &d_lo, &d_hi);
-
-    // Clear only the changed x-band in the framebuffer, then redraw the line
-    if (t_valid) {
-        int32_t ry = Y_TIME - ASCEND, rh = ASCEND + DESCEND;
-        for (int r = ry; r < ry + rh; r++)
-            memset(framebuffer + r * EPD_WIDTH / 2 + t_lo / 2, 0xFF, (t_hi - t_lo) / 2);
-        drawFira(di->timeStr, Y_TIME);
-    }
-    if (d_valid) {
-        int32_t ry = Y_DATE - ASCEND, rh = ASCEND + DESCEND;
-        for (int r = ry; r < ry + rh; r++)
-            memset(framebuffer + r * EPD_WIDTH / 2 + d_lo / 2, 0xFF, (d_hi - d_lo) / 2);
-        drawFira(di->dateStr, Y_DATE);
-    }
-
-    // Push changed rects in one power session
+/*
+ * Layout (960 × 540 px):
+ *
+ *  y= 65   "Owner: Ashish Kumar Choubey"
+ *  y=115   "Do not touch this 😤"
+ *          ─── divider y=140 ───
+ *  y=195   "Sunday"
+ *  y=268   "रविवार"   (ascender=56; bottom≈294)
+ *          [7-seg digits rows 298–386]
+ *  y=432   "March 9, 2026"
+ *          ─── divider y=448 ───
+ *  left:   moon icon cx=120 cy=484 r=28   │  right: weather icon cx=810 cy=480 r=22
+ *  y=510   moon phase (col cx=220)        │         temperature (col cx=760)
+ *  y=534   moon tithi  (col cx=220)       │         condition   (col cx=760)
+ */
+void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi) {
     epd_poweron();
-    if (t_valid) {
-        int32_t ry = Y_TIME - ASCEND, rh = ASCEND + DESCEND;
-        pushSubRect(t_lo, ry, t_hi - t_lo, rh);
-        Serial.printf("Partial time x[%d..%d]: %s\n", t_lo, t_hi, di->timeStr);
+    epd_clear();
+    memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
+
+    drawFira(OWNER_NAME,                            Y_OWNER);
+    drawFira("Do not touch this \xF0\x9F\x98\xA4", Y_NOTTOUCH);
+    drawRule(Y_DIV1);
+
+    drawFira(di->dayName,  Y_DAY_EN);
+    drawDeva(di->hindiDay, Y_DAY_HI);
+    drawTimeSevenSeg(di->timeStr);
+    drawFira(di->dateStr,  Y_DATE);
+    drawRule(Y_DIV2);
+
+    drawMoonIcon(MOON_CX, MOON_CY, MOON_R, mi->age);
+    char tithi_line[64];
+    snprintf(tithi_line, sizeof(tithi_line), "%s %s", mi->paksha, mi->tithi);
+    drawFiraCol(mi->phase,   MOON_TEXT_CX, Y_PHASE);
+    drawFiraCol(tithi_line,  MOON_TEXT_CX, Y_TITHI);
+
+    if (wi && wi->valid) {
+        drawWeatherIcon(wi->condition, WEATHER_ICON_CX, WEATHER_ICON_CY, WEATHER_ICON_R);
+        drawFiraCol(wi->temp,      WEATHER_TEXT_CX, Y_PHASE);
+        drawFiraCol(wi->condition, WEATHER_TEXT_CX, Y_TITHI);
     }
-    if (d_valid) {
-        int32_t ry = Y_DATE - ASCEND, rh = ASCEND + DESCEND;
-        pushSubRect(d_lo, ry, d_hi - d_lo, rh);
-        Serial.printf("Partial date x[%d..%d]: %s\n", d_lo, d_hi, di->dateStr);
+
+    epd_draw_grayscale_image(epd_full_screen(), framebuffer);
+    epd_poweroff();
+
+    strcpy(prevTimeStr, di->timeStr);
+
+    Serial.printf("Main: %s | %s | Moon %.1fd %s | Wx: %s %s\n",
+                  di->dayName, di->dateStr, mi->age, mi->phase,
+                  wi && wi->valid ? wi->temp : "n/a",
+                  wi && wi->valid ? wi->condition : "");
+}
+
+void renderTimeRegion(const DateInfo *di) {
+    if (strlen(prevTimeStr) == 0) {
+        // No previous state — full 7-seg strip
+        int32_t ry = SEG_TOP_Y - 2, rh = SEG_DH + 4;
+        for (int r = ry; r < ry + rh; r++)
+            memset(framebuffer + r * EPD_WIDTH / 2, 0xFF, EPD_WIDTH / 2);
+        drawTimeSevenSeg(di->timeStr);
+        epd_poweron();
+        Rect_t rgn = {.x = 0, .y = ry, .width = EPD_WIDTH, .height = rh};
+        epd_clear_area(rgn);
+        epd_draw_grayscale_image(rgn, framebuffer + ry * EPD_WIDTH / 2);
+        epd_poweroff();
+        strcpy(prevTimeStr, di->timeStr);
+        return;
+    }
+
+    int old_h, old_m, new_h, new_m;
+    char old_ampm[4] = "", new_ampm[4] = "";
+    sscanf(prevTimeStr,   "%d : %d %3s", &old_h, &old_m, old_ampm);
+    sscanf(di->timeStr, "%d : %d %3s", &new_h, &new_m, new_ampm);
+
+    // Layout change (e.g. 9→10 or 12→1) — full strip redraw
+    if ((old_h >= 10) != (new_h >= 10)) {
+        int32_t ry = SEG_TOP_Y - 2, rh = SEG_DH + 4;
+        for (int r = ry; r < ry + rh; r++)
+            memset(framebuffer + r * EPD_WIDTH / 2, 0xFF, EPD_WIDTH / 2);
+        drawTimeSevenSeg(di->timeStr);
+        epd_poweron();
+        Rect_t rgn = {.x = 0, .y = ry, .width = EPD_WIDTH, .height = rh};
+        epd_clear_area(rgn);
+        epd_draw_grayscale_image(rgn, framebuffer + ry * EPD_WIDTH / 2);
+        epd_poweroff();
+        strcpy(prevTimeStr, di->timeStr);
+        return;
+    }
+
+    SegLayout L = computeSegLayout(new_h, new_ampm);
+
+    struct DigitChange { int32_t x; int d; };
+    DigitChange changes[4];
+    int nc = 0;
+
+    if (L.n_h == 2) {
+        if (old_h / 10 != new_h / 10) changes[nc++] = {L.xd[0], new_h / 10};
+        if (old_h % 10 != new_h % 10) changes[nc++] = {L.xd[1], new_h % 10};
+    } else {
+        if (old_h % 10 != new_h % 10) changes[nc++] = {L.xd[0], new_h % 10};
+    }
+    if (old_m / 10 != new_m / 10) changes[nc++] = {L.xd[L.n_h],   new_m / 10};
+    if (old_m % 10 != new_m % 10) changes[nc++] = {L.xd[L.n_h+1], new_m % 10};
+
+    if (nc == 0) { strcpy(prevTimeStr, di->timeStr); return; }
+
+    // Clear and redraw each changed digit cell in the framebuffer
+    for (int i = 0; i < nc; i++) {
+        int32_t rx = changes[i].x;
+        for (int r = SEG_TOP_Y; r < SEG_TOP_Y + SEG_DH; r++)
+            memset(framebuffer + r * EPD_WIDTH / 2 + rx / 2, 0xFF, SEG_DW / 2);
+        drawSeg(changes[i].d, changes[i].x, SEG_TOP_Y);
+    }
+
+    // Push changed digit rects in one power session
+    epd_poweron();
+    for (int i = 0; i < nc; i++) {
+        pushSubRect(changes[i].x, SEG_TOP_Y, SEG_DW, SEG_DH);
+        Serial.printf("7seg x=%d d=%d\n", changes[i].x, changes[i].d);
     }
     epd_poweroff();
 
     strcpy(prevTimeStr, di->timeStr);
-    strcpy(prevDateStr, di->dateStr);
 }
 
 void renderTouched() {

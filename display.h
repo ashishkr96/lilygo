@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "types.h"
+#include "weather.h"
 
 // Shared framebuffer — allocated in display_init(), used by all draw calls.
 extern uint8_t *framebuffer;
@@ -14,10 +15,12 @@ void drawDeva(const char *text, int32_t y);   // NotoDevanagari font
 void drawRule(int32_t y);                      // full-width horizontal rule
 
 // Moon phase icon: lit side right (waxing) or left (waning).
-// cx/cy = circle centre, r = radius, age = days since new moon.
 void drawMoonIcon(int32_t cx, int32_t cy, int32_t r, float age);
 
+// Weather condition icon drawn at (cx,cy) with radius r.
+void drawWeatherIcon(const char *condition, int32_t cx, int32_t cy, int32_t r);
+
 // Full-screen render passes
-void renderMain(const DateInfo *di, const MoonInfo *mi);  // property header + date + moon section
-void renderTimeRegion(const DateInfo *di);                 // partial refresh: time + date strip only
-void renderTouched();                                      // random joke screen
+void renderMain(const DateInfo *di, const MoonInfo *mi, const WeatherInfo *wi);
+void renderTimeRegion(const DateInfo *di);   // partial 7-seg digit update
+void renderTouched();                         // random joke screen
